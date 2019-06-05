@@ -1,0 +1,107 @@
+{
+  "variables": {
+    "kubernetes_version": "1.13.6-00",
+    "kubernetes_cni_version": "0.7.5-00",
+    "existing_ansible_ssh_args": "{{env `ANSIBLE_SSH_ARGS`}}",
+    "build_timestamp": "{{timestamp}}",
+ 
+    "aws_access_key": "",
+    "aws_secret_key": "",
+    "ami_groups": "all",
+    "ami_regions": "us-east-1,eu-central-1",
+
+    "client_id": "",
+    "client_secret": "",
+    "subscription_id": "",
+    "tenant_id": ""
+
+  },
+  "builders": [{
+    "type": "amazon-ebs",
+
+    "access_key": "{{user `aws_access_key`}}",
+    "secret_key": "{{user `aws_secret_key`}}",
+
+    "region": "{{ user `aws_region` }}",
+    "vpc_id": "vpc-1179c777",
+    "subnet_id": "subnet-55620a0e",
+    "security_group_id": "sg-0298ccefad9b0217f",
+    "ssh_interface": "public_ip",
+    "associate_public_ip_address": "true",
+    "ssh_username": "ubuntu",
+    "instance_type": "t2.small",
+  
+    "source_ami": "ami-0a313d6098716f372",
+    "ami_name": "bfran-capn-ubuntu-18.04-{{user `kubernetes_version`}}-{{user `build_timestamp`}}",
+    "ami_groups": "{{user `ami_groups`}}",
+    "ami_regions": "{{user `ami_regions`}}",
+
+    "tags": {
+      "build_timestamp": "{{user `build_timestamp`}}",
+      "source_ami": "{{user `ubuntu_18_04_ami`}}",
+      "build_date": "{{isotime}}",
+      "distribution": "Ubuntu",
+      "distribution_release": "bionic",
+      "distribution_version": "18.04",
+      "kubernetes_version": "{{user `kubernetes_version`}}",
+      "kubernetes_cni_version": "{{user `kubernetes_cni_version`}}"
+    }
+  },{
+    "type": "azure-arm",
+
+    "client_id": "{{user `client_id`}}",
+    "client_secret": "{{user `client_secret`}}",
+    "subscription_id": "{{user `subscription_id`}}",
+    "tenant_id": "{{user `tenant_id`}}",
+
+    "location": "East US",
+    "vm_size": "Standard_DS2_v2",
+    "ssh_username": "ubuntu",
+
+    "managed_image_resource_group_name": "bfran",
+    "managed_image_name": "bfran-capn-ubuntu-18.04-{{user `kubernetes_version`}}-{{user `build_timestamp`}}",
+
+    "os_type": "Linux",
+    "image_publisher": "Canonical",
+    "image_offer": "UbuntuServer",
+    "image_sku": "18.04-LTS",
+
+    "azure_tags": {
+      "build_timestamp": "{{user `build_timestamp`}}",
+      "build_date": "{{isotime}}",
+      "distribution": "Ubuntu",
+      "distribution_release": "bionic",
+      "distribution_version": "18.04",
+      "kubernetes_version": "{{user `kubernetes_version`}}",
+      "kubernetes_cni_version": "{{user `kubernetes_cni_version`}}"
+  }
+  }],
+  "provisioners": [{
+      "type": "shell",
+      "inline": [
+        "while [ ! -f /var/lib/cloud/instance/boot-finished ]; do echo 'Waiting for cloud-init...'; sleep 1; done",
+        "sudo apt-get -qq update && sudo apt-get -qqy install python python-pip"
+      ]
+    },
+    {
+      "type": "ansible",
+      "playbook_file": "./ansible/playbook.yml",
+      "ansible_env_vars": [
+        "ANSIBLE_SSH_ARGS='{{user `existing_ansible_ssh_args`}} -o IdentitiesOnly=yes'",
+        "ANSIBLE_REMOTE_TEMP='/tmp/.ansible/'"
+      ],
+      "extra_arguments": [
+        "--extra-vars",
+        "kubernetes_version={{user `kubernetes_version`}} kubernetes_cni_version={{user `kubernetes_cni_version`}}"
+      ]
+    },
+    {
+      "type": "goss",
+      "vars_file": "./packer/goss/ubuntu-vars.yaml",
+      "use_sudo": true,
+      "tests": [
+        "./packer/goss/goss.yaml"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+version: 2
+jobs:
+  build:
+    docker:
+      - image: franbarrera/packer-goss:1.3.5
+    working_directory: ~/packer
+    steps:
+      - checkout
+      - run:
+          name: Install ansible # It can be added in the docker image
+          command: |
+            apk -v --update add ansible
+            rm /var/cache/apk/*
+      - attach_workspace:
+          at: ~/packer
+      - run:
+          name: Build 
+          command: |
+            packer build ./packer/packer.json
+workflow:
+  jobs:
+  - build
